@@ -1,0 +1,43 @@
+{
+	"type": "package",
+	"handle": "ask-my-course",
+	"version": "1.0.0",
+	"description": null,
+	"author": "Enias",
+	"entrypoint": "Unused",
+	"public": true,
+	"plugin": null,
+	"build_config": {
+		"ignore": [
+			"tests",
+			"examples",
+			"upload"
+		]
+	},
+	"configTemplate": {
+		"model_name": {
+			"type": "string",
+			"description": null,
+			"default": "gpt-3.5-turbo"
+		}
+	},
+	"steamshipRegistry": {
+		"tagline": "Create a custom ChatBot from your course content.",
+		"tagline2": null,
+		"usefulFor": null,
+		"videoUrl": null,
+		"githubUrl": null,
+		"demoUrl": null,
+		"blogUrl": null,
+		"jupyterUrl": null,
+		"authorGithub": "EniasCailliau",
+		"authorName": "Enias",
+		"authorEmail": "enias@steamship.com",
+		"authorTwitter": "@eniascailliau",
+		"authorUrl": "https://enias.io/",
+		"tags": [
+			"LangChain",
+			"ChatBot"
+		]
+	}
+}
