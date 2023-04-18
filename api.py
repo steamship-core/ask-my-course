@@ -220,20 +220,19 @@ class AskMyCourse(PackageService):
         )
 
     @post("/add_lecture")
-    def add_lecture(self, youtube_url: HttpUrl) -> bool:
+    def add_lecture(self, youtube_url: HttpUrl) -> Task:
         file_importer = self.client.use_plugin("youtube-file-importer")
         file_create_task = File.create_with_plugin(
             self.client, plugin_instance=file_importer.handle, url=youtube_url
         )
-        self.invoke_later(
+        return self.invoke_later(
             method="transcribe_lecture",
             arguments={"task_id": file_create_task.task_id, "source": youtube_url},
             wait_on_tasks=[file_create_task],
         )
-        return True
 
     @post("/add_pdf")
-    def add_pdf(self, pdf_url: HttpUrl) -> bool:
+    def add_pdf(self, pdf_url: HttpUrl) -> Task:
         response = requests.get(pdf_url)
         file = File.create(self.client, content=response.content, mime_type=MimeTypes.PDF)
 
@@ -246,11 +245,10 @@ class AskMyCourse(PackageService):
         Tag.create(self.client, file_id=file.id, kind="source", name=pdf_url)
         Tag.create(self.client, file_id=file.id, kind="title", name=title)
 
-        self.invoke_later(
+        return self.invoke_later(
             method="blockify_pdf",
             arguments={"file_id": file.id, "source": pdf_url},
         )
-        return True
 
     @post("/answer", public=True)
     def answer(
@@ -275,9 +273,26 @@ class AskMyCourse(PackageService):
         return {"answer": answer.strip(), "sources": sources}
 
 
-if __name__ == '__main__':
-    db_name = "your-db-name"
-    client = Steamship(workspace=db_name)
-    amb = AskMyCourse(client)
+def test_with_pdf():
+    url = "https://www.with.org/tao_te_ching_en.pdf"
+    client = Steamship(workspace="tao-test")
+    app = AskMyCourse(client)
+    task = app.add_pdf(url)
+    task.wait()
+    print("Waited")
+    print(app.get_lectures())
 
-    print(amb.get_lectures())
+
+def test_with_video():
+    url = "https://www.with.org/tao_te_ching_en.pdf"
+    client = Steamship(workspace="youtube-test")
+    app = AskMyCourse(client)
+    task = app.add_lecture(url)
+    print("Waited")
+    print(app.get_lectures())
+
+
+if __name__ == '__main__':
+    test_with_pdf()
+
+
