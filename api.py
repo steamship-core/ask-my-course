@@ -1,7 +1,7 @@
 import json
 from itertools import groupby
 from typing import Type, Optional, Dict, Any, List
-
+import uuid
 import langchain
 from langchain.chains import ChatVectorDBChain
 from langchain.chains.llm import LLMChain
@@ -9,11 +9,14 @@ from langchain.chains.question_answering import load_qa_chain
 from langchain.docstore.document import Document
 from pydantic import HttpUrl
 from pytube import YouTube
-from steamship import File, Task, Tag, SteamshipError, Steamship
+from steamship import File, Task, Tag, SteamshipError, Steamship, MimeTypes, DocTag
+from steamship.data import TagValueKey
 from steamship.invocable import Config
 from steamship.invocable import PackageService, post, get
 from steamship_langchain.llms.openai import OpenAIChat
 from steamship_langchain.vectorstores import SteamshipVectorStore
+import requests
+from pathlib import Path
 
 from chat_history import ChatHistory
 from prompts import qa_prompt, condense_question_prompt
@@ -26,14 +29,14 @@ DEBUG = False
 class AskMyCourse(PackageService):
     class AskMyCourseConfig(Config):
         model_name: str = "gpt-3.5-turbo"
+        context_window_size: int = 200
+        context_window_overlap: int = 50
 
     config: AskMyCourseConfig
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.index_name = self.client.config.workspace_handle + "_index"
-        self.youtube_importer = self.client.use_plugin("youtube-file-importer")
-        self.transcriber = self.client.use_plugin("s2t-blockifier-default")
         self.qa_chain = self._get_chain()
 
     @classmethod
@@ -118,14 +121,11 @@ class AskMyCourse(PackageService):
         timestamps = [tag for tag in tags if tag.kind == "timestamp"]
         timestamps = sorted(timestamps, key=lambda x: x.start_idx)
 
-        context_window_size = 200
-        context_window_overlap = 50
-
         documents = []
         for i in range(
-                0, len(timestamps), context_window_size - context_window_overlap
+                0, len(timestamps), self.config.context_window_size - self.config.context_window_overlap
         ):
-            timestamp_tags_window = timestamps[i: i + context_window_size]
+            timestamp_tags_window = timestamps[i: i + self.config.context_window_size]
             page_content = " ".join(tag.name for tag in timestamp_tags_window)
             doc = Document(
                 page_content=page_content,
@@ -142,35 +142,114 @@ class AskMyCourse(PackageService):
         self._update_file_status(file, "Indexed")
         return True
 
+    @post("/index_pdf")
+    def index_pdf(self, file_id: str, source: str) -> bool:
+        file = File.get(self.client, _id=file_id)
+        self._update_file_status(file, "Indexing")
+
+        # For PDFs, we iterate over the blocks (block = page) and then split each chunk of texts into the context
+        # window units.
+
+        documents = []
+
+        for block in file.blocks:
+            # Load the page_id from the block if it exists
+            page_id = None
+            for tag in block.tags:
+                if tag.name == DocTag.PAGE:
+                    page_num = tag.value.get(TagValueKey.NUMBER_VALUE)
+                    if page_num is not None:
+                        page_id = page_num
+
+            for i in range(0, len(block.text), self.config.context_window_size):
+                # Calculate the extent of the window plus the overlap at the edges
+                min_range = max(0, i - self.config.context_window_overlap)
+                max_range = min(len(block.text), i + self.config.context_window_size + self.config.context_window_overlap)
+
+                # Get the text covering that chunk.
+                chunk = block.text[min_range:max_range]
+
+                # Create a Document.
+                # TODO(ted): See if there's a way to support the LC Embedding Index abstraction that lets us use Tag here.
+                doc = Document(
+                    page_content=chunk,
+                    metadata={
+                        "source": source,
+                        "file_id": file.id,
+                        "block_id": block.id,
+                        "page": page_id
+                    },
+                )
+                documents.append(doc)
+
+        self._get_index().add_documents(documents)
+        self._update_file_status(file, "Indexed")
+        return True
+
     @post("/transcribe_lecture")
-    def transcribe_lecture(self, task_id: str, source: str):
-        file_create_task = Task.get(self.client, task_id)
-        file = File.get(self.client, json.loads(file_create_task.output)["file"]["id"])
+    def transcribe_lecture(self, file_id: str, source: str):
+        file = File.get(self.client, _id=file_id)
 
         Tag.create(self.client, file_id=file.id, kind="source", name=source)
         Tag.create(self.client, file_id=file.id, kind="title", name=YouTube(source).title)
 
         self._update_file_status(file, "Transcribing")
 
-        transcribe_lecture_task = file.blockify(self.transcriber.handle)
+        blockifier = self.client.use_plugin("s2t-blockifier-default")
+        blockify_file_task = file.blockify(blockifier.handle)
 
         return self.invoke_later(
             method="index_lecture",
-            arguments={"task_id": file_create_task.task_id, "source": source},
-            wait_on_tasks=[transcribe_lecture_task],
+            arguments={"file_id": file.id, "source": source},
+            wait_on_tasks=[blockify_file_task],
+        )
+
+    @post("/blockify_pdf")
+    def blockify_pdf(self, file_id: str, source: str):
+        file = File.get(self.client, _id=file_id)
+
+        self._update_file_status(file, "Parsing")
+
+        blockifier = self.client.use_plugin("pdf-blockifier")
+        blockify_file_task = file.blockify(blockifier.handle)
+
+        return self.invoke_later(
+            method="index_pdf",
+            arguments={"file_id": file_id, "source": source},
+            wait_on_tasks=[blockify_file_task],
         )
 
     @post("/add_lecture")
     def add_lecture(self, youtube_url: HttpUrl) -> bool:
+        file_importer = self.client.use_plugin("youtube-file-importer")
         file_create_task = File.create_with_plugin(
-            self.client, plugin_instance=self.youtube_importer.handle, url=youtube_url
+            self.client, plugin_instance=file_importer.handle, url=youtube_url
         )
         self.invoke_later(
             method="transcribe_lecture",
             arguments={"task_id": file_create_task.task_id, "source": youtube_url},
             wait_on_tasks=[file_create_task],
         )
+        return True
 
+    @post("/add_pdf")
+    def add_pdf(self, pdf_url: HttpUrl) -> bool:
+        response = requests.get(pdf_url)
+        file = File.create(self.client, content=response.content, mime_type=MimeTypes.PDF)
+
+        # Hacky way to get the last segment of the URL but drop the query & hash
+        title = pdf_url.split('/')[-1]
+        title = title.split('?')[0]
+        title = title.split('#')[0]
+
+        # Tag the title for provenance reporting
+        Tag.create(self.client, file_id=file.id, kind="source", name=pdf_url)
+        Tag.create(self.client, file_id=file.id, kind="title", name=title)
+
+        self.invoke_later(
+            method="blockify_pdf",
+            arguments={"file_id": file.id, "source": pdf_url},
+        )
         return True
 
     @post("/answer", public=True)
