@@ -54,6 +54,7 @@ class AskMyCourse(PackageService):
         """This instance init method is called automatically when an instance of this package is created. It registers the URL of the instance as the Telegram webhook for messages."""
         webhook_url = self.context.invocable_url + 'telegram_respond'
         self.telegram_transport.instance_init(webhook_url=webhook_url)
+        self.web_transport.instance_init()
 
     @classmethod
     def config_cls(cls) -> Type[Config]:
@@ -285,14 +286,16 @@ class AskMyCourse(PackageService):
     def _response_for(self, chat_block: ChatMessage) -> (str, any):
         chat_history = ChatHistory(self.client, chat_block.get_chat_id())
 
+        logging.info(f"[Chat ID: {chat_block.get_chat_id()}] Asking question: {chat_block.text}")
+
         result = self.qa_chain(
             {"question": chat_block.text, "chat_history": chat_history.load()}
         )
+
         if len(result["source_documents"]) == 0:
-            return {
-                "answer": "No sources found to answer your question. Please try another question.",
-                "sources": result["source_documents"],
-            }
+            answer = "No sources found to answer your question. Please try another question."
+            sources = []
+            return answer, sources
 
         answer = result["answer"]
         sources = result["source_documents"]

@@ -25,7 +25,8 @@ def _timestamp_tag() -> Tag:
 
 class ChatHistory:
     def __init__(self, client: Steamship, chat_session_id: Optional[str] = None):
-        self.chat_session_id = chat_session_id or "default"
+        # Note: it's important this starts with chat-session because we don't support numeric-only handles
+        self.chat_session_id = f"chat-session-{chat_session_id or 'default'}"
         self.client = client
 
     def _get_chat_history_file(self) -> Optional[File]:

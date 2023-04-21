@@ -1,7 +1,7 @@
 {
 	"type": "package",
 	"handle": "qa-bot-telegram",
-	"version": "1.0.5",
+	"version": "1.0.22",
 	"description": null,
 	"author": "Enias",
 	"entrypoint": "Unused",

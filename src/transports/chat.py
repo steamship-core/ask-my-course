@@ -16,7 +16,7 @@ class ChatTag(str, Enum):
 
 
 class ChatMessage(Block):
-    def __init__(self, chat_id: Optional[str], message_id: Optional[str], **kwargs):
+    def __init__(self, chat_id: Optional[str] = None, message_id: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
 
         # Note: Keep the str() wrappings below since Telegram sends int values.

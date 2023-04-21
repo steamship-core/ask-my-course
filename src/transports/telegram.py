@@ -26,11 +26,18 @@ class TelegramTransport(Transport):
             )
 
         webhook_url = kwargs["webhook_url"]
+        logging.info(f"Setting Telegram webhook URL: {webhook_url}")
+        logging.info(f"Post is to {self.api_root}/setWebhook")
 
         response = requests.get(
             f"{self.api_root}/setWebhook",
-            params={"url": webhook_url, "allowed_updates": ["message"]},
+            params={
+                "url": webhook_url,
+                "allowed_updates": ["message"],
+                "drop_pending_updates": True,
+            },
         )
+
         if not response.ok:
             raise SteamshipError(
                 f"Could not set webhook for bot. Webhook URL was {webhook_url}. Telegram response message: {response.text}"

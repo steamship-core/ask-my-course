@@ -34,37 +34,37 @@ class Transport(ABC):
     """
 
     def instance_init(self, *args, **kwargs):
-        logging.info("Transport initializing.")
+        logging.info(f"Transport initializing: {self.__class__.__name__}")
         start = time.time()
         self._instance_init(*args, **kwargs)
         end = time.time()
-        logging.info(f"Transport initialized in {end - start} seconds.")
+        logging.info(f"Transport initialized in {end - start} seconds: {self.__class__.__name__}")
+
+    @abstractmethod
+    def _instance_init(self, *args, **kwargs):
+        raise NotImplementedError
 
     @abstractmethod
     def _instance_deinit(self, *args, **kwargs):
         raise NotImplementedError
 
     def instance_deinit(self, *args, **kwargs):
-        logging.info("Transport deinitializing.")
+        logging.info(f"Transport deinitializing: {self.__class__.__name__}")
         start = time.time()
         self._instance_deinit(*args, **kwargs)
         end = time.time()
-        logging.info(f"Transport deinitialized in {end - start} seconds.")
-
-    @abstractmethod
-    def _instance_init(self, *args, **kwargs):
-        raise NotImplementedError
+        logging.info(f"Transport deinitialized in {end - start} seconds: {self.__class__.__name__}")
 
     def send(self, blocks: List[ChatMessage]):
         if blocks is None or len(blocks) == 0:
-            logging.info(f"Skipping send of 0 blocks.")
+            logging.info(f"Skipping send of 0 blocks: {self.__class__.__name__}")
             return
 
-        logging.info(f"Sending {len(blocks)} blocks.")
+        logging.info(f"Sending {len(blocks)} blocks: {self.__class__.__name__}")
         start = time.time()
         self._send(blocks)
         end = time.time()
-        logging.info(f"Sending {len(blocks)} blocks in {end - start} seconds.")
+        logging.info(f"Sending {len(blocks)} blocks in {end - start} seconds: {self.__class__.__name__}")
 
     @abstractmethod
     def _send(self, blocks: List[ChatMessage]):
@@ -78,11 +78,11 @@ class Transport(ABC):
         raise NotImplementedError
 
     def info(self) -> dict:
-        logging.info("Getting transport info.")
+        logging.info(f"Getting transport info: {self.__class__.__name__}")
         start = time.time()
         info = self._info()
         end = time.time()
-        logging.info(f"Transport info fetched in {end - start} seconds.")
+        logging.info(f"Transport info fetched in {end - start} seconds: {self.__class__.__name__}")
         return info
 
     @abstractmethod
