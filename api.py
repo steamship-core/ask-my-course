@@ -7,19 +7,21 @@ from langchain.chains import ChatVectorDBChain
 from langchain.chains.llm import LLMChain
 from langchain.chains.question_answering import load_qa_chain
 from langchain.docstore.document import Document
-from pydantic import HttpUrl
+from pydantic import HttpUrl, Field
 from pytube import YouTube
 from steamship import File, Task, Tag, SteamshipError, Steamship, MimeTypes, DocTag
 from steamship.data import TagValueKey
-from steamship.invocable import Config
+from steamship.invocable import Config, InvocableResponse
 from steamship.invocable import PackageService, post, get
 from steamship_langchain.llms.openai import OpenAIChat
 from steamship_langchain.vectorstores import SteamshipVectorStore
 import requests
-from pathlib import Path
 
 from chat_history import ChatHistory
 from prompts import qa_prompt, condense_question_prompt
+from transports import TelegramTransport
+from transports.chat import ChatMessage
+from transports.steamship_widget import SteamshipWidgetTransport
 
 langchain.llm_cache = None
 
@@ -27,7 +29,13 @@ DEBUG = False
 
 
 class AskMyCourse(PackageService):
+
     class AskMyCourseConfig(Config):
+        bot_name: str = Field(description='What the bot should call itself')
+        bot_personality: str = Field(
+            description='Complete the sentence, "The bot\'s personality is _." Writing a longer, more detailed description will yield less generic results.')
+        bot_token: str = Field(description="The secret token for your Telegram bot")
+
         model_name: str = "gpt-3.5-turbo"
         context_window_size: int = 200
         context_window_overlap: int = 50
@@ -38,6 +46,14 @@ class AskMyCourse(PackageService):
         super().__init__(*args, **kwargs)
         self.index_name = self.client.config.workspace_handle + "_index"
         self.qa_chain = self._get_chain()
+
+        self.web_transport = SteamshipWidgetTransport()
+        self.telegram_transport = TelegramTransport(bot_token=self.config.bot_token)
+
+    def instance_init(self):
+        """This instance init method is called automatically when an instance of this package is created. It registers the URL of the instance as the Telegram webhook for messages."""
+        webhook_url = self.context.invocable_url + 'telegram_respond'
+        self.telegram_transport.instance_init(webhook_url=webhook_url)
 
     @classmethod
     def config_cls(cls) -> Type[Config]:
@@ -250,15 +266,11 @@ class AskMyCourse(PackageService):
             arguments={"file_id": file.id, "source": pdf_url},
         )
 
-    @post("/answer", public=True)
-    def answer(
-            self, question: str, chat_session_id: Optional[str] = None
-    ) -> Dict[str, Any]:
-        chat_session_id = chat_session_id or "default"
-        chat_history = ChatHistory(self.client, chat_session_id)
+    def _response_for(self, chat_block: ChatMessage) ->  (str, any):
+        chat_history = ChatHistory(self.client, chat_block.get_chat_id())
 
         result = self.qa_chain(
-            {"question": question, "chat_history": chat_history.load()}
+            {"question": chat_block.text, "chat_history": chat_history.load()}
         )
         if len(result["source_documents"]) == 0:
             return {
@@ -268,8 +280,30 @@ class AskMyCourse(PackageService):
 
         answer = result["answer"]
         sources = result["source_documents"]
-        chat_history.append(question, answer)
+        chat_history.append(chat_block.text, answer)
+        return answer, sources
 
+    @post("telegram_respond", public=True)
+    def telegram_respond(self, update_id: int, message: dict) -> InvocableResponse[str]:
+        """Endpoint implementing the Telegram WebHook contract. This is a PUBLIC endpoint since Telegram cannot pass a Bearer token."""
+        chat_block = self.telegram_transport.parse_inbound(payload=message)
+        answer, sources = self._response_for(chat_block)
+        response_block = ChatMessage(
+            text=answer,
+            chat_id=chat_block.get_chat_id()
+        )
+        self.telegram_transport.send([response_block])
+        return InvocableResponse(string="OK")
+
+    @post("/answer", public=True)
+    def answer(
+            self, question: str, chat_session_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        chat_block = self.web_transport.parse_inbound(payload={
+            "question": question,
+            "chat_session_id": chat_session_id
+        })
+        answer, sources = self._response_for(chat_block)
         return {"answer": answer.strip(), "sources": sources}
 
 

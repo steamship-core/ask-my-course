@@ -1,6 +1,6 @@
 {
 	"type": "package",
-	"handle": "ask-my-course",
+	"handle": "qa-bot-telegram",
 	"version": "1.0.0",
 	"description": null,
 	"author": "Enias",
