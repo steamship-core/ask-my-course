@@ -38,6 +38,10 @@ class SteamshipWidgetTransport(Transport):
 
         chat_id = payload.get("chat_session_id", "default")
 
+        # There's a bug somewhere causing this to spread
+        if chat_id == "None":
+            chat_id = "default"
+
         message_id = str(uuid.uuid4())
 
         block = ChatMessage(

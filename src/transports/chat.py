@@ -30,7 +30,7 @@ class ChatMessage(Block):
 
     def set_chat_id(self, chat_id: str):
         existing = self.get_chat_id()
-        if existing:
+        if existing is not None:
             if existing == chat_id:
                 return # No action necessary
             else:
@@ -45,7 +45,7 @@ class ChatMessage(Block):
 
     def set_message_id(self, message_id: str):
         existing = self.get_message_id()
-        if existing:
+        if existing is not None:
             if existing == message_id:
                 return # No action necessary
             else:

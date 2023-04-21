@@ -154,6 +154,13 @@ class AskMyCourse(PackageService):
         self._update_file_status(file, "Indexed")
         return True
 
+    @post("info")
+    def info(self) -> dict:
+        """Endpoint returning information about this bot."""
+        info = self.telegram_transport.info()
+        logging.info(f"/info: {info}")
+        return info
+
     @post("/index_pdf")
     def index_pdf(self, file_id: str, source: str) -> bool:
         file = File.get(self.client, _id=file_id)

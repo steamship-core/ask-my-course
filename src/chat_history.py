@@ -26,6 +26,11 @@ def _timestamp_tag() -> Tag:
 class ChatHistory:
     def __init__(self, client: Steamship, chat_session_id: Optional[str] = None):
         # Note: it's important this starts with chat-session because we don't support numeric-only handles
+        if chat_session_id is None:
+            chat_session_id = 'default'
+        if chat_session_id == "None":
+            chat_session_id = 'default'
+
         self.chat_session_id = f"chat-session-{chat_session_id or 'default'}"
         self.client = client
 
