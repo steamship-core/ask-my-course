@@ -1,9 +1,9 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 
-from steamship.experimental.transports.chat import ChatMessage
+from transports.chat import ChatMessage
 
 
 class Transport(ABC):
@@ -70,11 +70,11 @@ class Transport(ABC):
     def _send(self, blocks: List[ChatMessage]):
         raise NotImplementedError
 
-    def parse_inbound(self, payload: dict, context: dict) -> ChatMessage:
+    def parse_inbound(self, payload: dict, context: Optional[dict] = None) -> ChatMessage:
         return self._parse_inbound(payload, context)
 
     @abstractmethod
-    def _parse_inbound(self, payload: dict, context: dict) -> ChatMessage:
+    def _parse_inbound(self, payload: dict, context: Optional[dict] = None) -> ChatMessage:
         raise NotImplementedError
 
     def info(self) -> dict:

@@ -1,7 +1,7 @@
 {
 	"type": "package",
 	"handle": "qa-bot-telegram",
-	"version": "1.0.0",
+	"version": "1.0.5",
 	"description": null,
 	"author": "Enias",
 	"entrypoint": "Unused",
@@ -15,10 +15,35 @@
 		]
 	},
 	"configTemplate": {
+		"bot_name": {
+			"type": "string",
+			"description": "What the bot should call itself",
+			"default": null
+		},
+		"bot_personality": {
+			"type": "string",
+			"description": "Complete the sentence, \"The bot's personality is _.\" Writing a longer, more detailed description will yield less generic results.",
+			"default": null
+		},
+		"bot_token": {
+			"type": "string",
+			"description": "The secret token for your Telegram bot",
+			"default": null
+		},
 		"model_name": {
 			"type": "string",
 			"description": null,
 			"default": "gpt-3.5-turbo"
+		},
+		"context_window_size": {
+			"type": "number",
+			"description": null,
+			"default": 200
+		},
+		"context_window_overlap": {
+			"type": "number",
+			"description": null,
+			"default": 50
 		}
 	},
 	"steamshipRegistry": {

@@ -1,12 +1,9 @@
-import logging
-import tempfile
 import uuid
+from typing import Optional
 
-import requests
-
-from steamship import Block, SteamshipError
-from steamship.experimental.transports.chat import ChatMessage
-from steamship.experimental.transports.transport import Transport
+from steamship import SteamshipError
+from transports.chat import ChatMessage
+from transports.transport import Transport
 
 API_BASE = "https://api.telegram.org/bot"
 
@@ -32,7 +29,7 @@ class SteamshipWidgetTransport(Transport):
         """Fetches info about this bot."""
         return {}
 
-    def _parse_inbound(self, payload: dict, context: dict) -> ChatMessage:
+    def _parse_inbound(self, payload: dict, context: Optional[dict] = None) -> ChatMessage:
         """Parses an inbound Steamship widget message."""
 
         message_text = payload.get('question')

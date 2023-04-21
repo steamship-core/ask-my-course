@@ -1,7 +1,6 @@
 import json
 from itertools import groupby
 from typing import Type, Optional, Dict, Any, List
-import uuid
 import langchain
 from langchain.chains import ChatVectorDBChain
 from langchain.chains.llm import LLMChain
@@ -20,8 +19,8 @@ import requests
 from chat_history import ChatHistory
 from prompts import qa_prompt, condense_question_prompt
 from transports import TelegramTransport
-from transports.chat import ChatMessage
-from transports.steamship_widget import SteamshipWidgetTransport
+from transports import ChatMessage
+from transports import SteamshipWidgetTransport
 
 langchain.llm_cache = None
 

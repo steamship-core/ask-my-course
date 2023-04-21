@@ -1,9 +1,9 @@
 from enum import Enum
 from typing import Optional
 
-from steamship import Block, DocTag, Tag, SteamshipError
+from steamship import Block, Tag, SteamshipError
 from steamship.data.tags.tag_constants import TagValueKey
-from easy.tags import get_tag_value_key
+from easy import get_tag_value_key
 
 class ChatTag(str, Enum):
     """A set of `name` constants for Tags with a `kind` of `TagKind.CHAT`."""
