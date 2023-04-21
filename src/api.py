@@ -31,11 +31,7 @@ DEBUG = False
 class AskMyCourse(PackageService):
 
     class AskMyCourseConfig(Config):
-        bot_name: str = Field(description='What the bot should call itself')
-        bot_personality: str = Field(
-            description='Complete the sentence, "The bot\'s personality is _." Writing a longer, more detailed description will yield less generic results.')
         bot_token: str = Field(description="The secret token for your Telegram bot")
-
         model_name: str = "gpt-3.5-turbo"
         context_window_size: int = 200
         context_window_overlap: int = 50
