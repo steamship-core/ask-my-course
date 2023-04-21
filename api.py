@@ -1,4 +1,5 @@
 import json
+import logging
 from itertools import groupby
 from typing import Type, Optional, Dict, Any, List
 import uuid
@@ -16,7 +17,6 @@ from steamship.invocable import PackageService, post, get
 from steamship_langchain.llms.openai import OpenAIChat
 from steamship_langchain.vectorstores import SteamshipVectorStore
 import requests
-from pathlib import Path
 
 from chat_history import ChatHistory
 from prompts import qa_prompt, condense_question_prompt
@@ -112,9 +112,8 @@ class AskMyCourse(PackageService):
         Tag.create(self.client, file_id=file.id, kind="status", name=status)
 
     @post("/index_lecture")
-    def index_lecture(self, task_id: str, source: str) -> bool:
-        file_create_task = Task.get(self.client, task_id)
-        file = File.get(self.client, json.loads(file_create_task.output)["file"]["id"])
+    def index_lecture(self, file_id: str, source: str) -> bool:
+        file = File.get(self.client, _id=file_id)
         self._update_file_status(file, "Indexing")
         tags = file.blocks[0].tags
 
@@ -164,7 +163,7 @@ class AskMyCourse(PackageService):
             for i in range(0, len(block.text), self.config.context_window_size):
                 # Calculate the extent of the window plus the overlap at the edges
                 min_range = max(0, i - self.config.context_window_overlap)
-                max_range = min(len(block.text), i + self.config.context_window_size + self.config.context_window_overlap)
+                max_range = i + self.config.context_window_size + self.config.context_window_overlap
 
                 # Get the text covering that chunk.
                 chunk = block.text[min_range:max_range]
@@ -187,11 +186,17 @@ class AskMyCourse(PackageService):
         return True
 
     @post("/transcribe_lecture")
-    def transcribe_lecture(self, file_id: str, source: str):
-        file = File.get(self.client, _id=file_id)
+    def transcribe_lecture(self, task_id: str, source: str):
+        file_create_task = Task.get(self.client, task_id)
+        file = File.get(self.client, json.loads(file_create_task.output)["file"]["id"])
 
         Tag.create(self.client, file_id=file.id, kind="source", name=source)
-        Tag.create(self.client, file_id=file.id, kind="title", name=YouTube(source).title)
+        try:
+            Tag.create(self.client, file_id=file.id, kind="title", name=YouTube(source).title)
+        except Exception as e:
+            logging.warning(f"Unable to access title of YouTube video {e}")
+            Tag.create(self.client, file_id=file.id, kind="title", name=source)
+
 
         self._update_file_status(file, "Transcribing")
 
@@ -250,6 +255,17 @@ class AskMyCourse(PackageService):
             arguments={"file_id": file.id, "source": pdf_url},
         )
 
+    @post("/add_url")
+    def add_url(self, url: HttpUrl) -> Task:
+        if "youtube.com" in url:
+            return self.add_lecture(url)
+        elif "youtu.be" in url:
+            return self.add_lecture(url)
+        elif ".pdf" in url:
+            return self.add_pdf(url)
+        else:
+            raise SteamshipError(message="Only youtube URLs and URLs of PDF files are currently supported.")
+
     @post("/answer", public=True)
     def answer(
             self, question: str, chat_session_id: Optional[str] = None
@@ -284,7 +300,7 @@ def test_with_pdf():
 
 
 def test_with_video():
-    url = "https://www.with.org/tao_te_ching_en.pdf"
+    url = "https://www.youtube.com/watch?v=LXDZ6aBjv_I"
     client = Steamship(workspace="youtube-test")
     app = AskMyCourse(client)
     task = app.add_lecture(url)
